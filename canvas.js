@@ -10,6 +10,7 @@ const gravityAcceleration = 9.81;
 const skin = 0.002;
 const clock = new THREE.Clock();
 let draggedObject = null;
+let modelInnerBounds = null;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xecf7f9);
@@ -122,6 +123,58 @@ function createPiece() {
 }
 
 document.getElementById('botonCrear').addEventListener('click', createPiece);
+document.getElementById('botonOrganizar').addEventListener('click', organizePieces);
+
+function organizePieces() {
+  if (!modelInnerBounds || objetos.length === 0) return;
+
+  const borderGap = 0.04;
+  const pieceGap = 0.015;
+  const interiorMinX = modelInnerBounds.min.x + borderGap;
+  const interiorMaxX = modelInnerBounds.max.x - borderGap;
+  const interiorMinZ = modelInnerBounds.min.z + borderGap;
+  const interiorMaxZ = modelInnerBounds.max.z - borderGap;
+  const supportY = modelInnerBounds.min.y + skin;
+  const lineHeight = interiorMaxZ - interiorMinZ;
+
+  let cursorX = interiorMinX;
+  let cursorZ = interiorMinZ;
+  let rowDepth = 0;
+
+  for (let i = 0; i < objetos.length; i++) {
+    const piece = objetos[i];
+    const pieceBox = new THREE.Box3().setFromObject(piece);
+    const pieceSize = pieceBox.getSize(new THREE.Vector3());
+    const halfX = pieceSize.x / 2;
+    const halfY = pieceSize.y / 2;
+    const halfZ = pieceSize.z / 2;
+
+    if (pieceSize.z > lineHeight || pieceSize.x > interiorMaxX - interiorMinX) {
+      continue;
+    }
+
+    if (cursorZ + pieceSize.z > interiorMaxZ + 1e-6) {
+      cursorX += rowDepth + pieceGap;
+      cursorZ = interiorMinZ;
+      rowDepth = 0;
+    }
+
+    if (cursorX + pieceSize.x > interiorMaxX + 1e-6) {
+      break;
+    }
+
+    piece.position.set(cursorX + halfX, supportY + halfY, cursorZ + halfZ);
+    piece.updateMatrixWorld(true);
+
+    if (piece.userData.physics) {
+      piece.userData.physics.velocityY = 0;
+      piece.userData.physics.lastSafePosition.copy(piece.position);
+    }
+
+    cursorZ += pieceSize.z + pieceGap;
+    rowDepth = Math.max(rowDepth, pieceSize.x);
+  }
+}
 
 function getDownwardIntersections(obj, origin) {
   const raycaster = new THREE.Raycaster();
@@ -224,6 +277,7 @@ function handleLoad(gltf) {
   gltf.scene.position.set(0, modelFloorOffset, 0);
   gltf.scene.updateMatrixWorld(true);
   scene.add(gltf.scene);
+  modelInnerBounds = new THREE.Box3().setFromObject(gltf.scene);
 
   for (let i = 0; i < modelMeshes.length; i++) {
     const mesh = modelMeshes[i];

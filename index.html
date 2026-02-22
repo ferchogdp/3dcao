@@ -70,6 +70,12 @@
         gap: 10px;
       }
 
+      .actions-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
       button {
         width: 100%;
         padding: 10px 14px;
@@ -84,6 +90,14 @@
 
       button:hover {
         background: #1e40af;
+      }
+
+      #botonOrganizar {
+        background: #0f766e;
+      }
+
+      #botonOrganizar:hover {
+        background: #115e59;
       }
 
       .footer {
@@ -135,7 +149,10 @@
           <label><input type="radio" name="unidades" value="cm" checked /> cm</label>
           <label><input type="radio" name="unidades" value="in" /> in</label>
         </div>
-        <button type="button" id="botonCrear">Create piece</button>
+        <div class="actions-row">
+          <button type="button" id="botonCrear">Create piece</button>
+          <button type="button" id="botonOrganizar">Organize pieces</button>
+        </div>
       </form>
     </div>
     <div id="canvas2"></div>
