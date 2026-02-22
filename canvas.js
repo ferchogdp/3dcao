@@ -5,7 +5,7 @@ import { DragControls } from 'https://unpkg.com/three@0.180.0/examples/jsm/contr
 
 const collisionMesh = [];
 let gravityOnOff = true;
-const worldFloor = -0.768;
+const worldFloor = 0;
 const gravityAcceleration = 9.81;
 const skin = 0.002;
 const clock = new THREE.Clock();
@@ -219,7 +219,10 @@ function handleLoad(gltf) {
     return;
   }
 
-  gltf.scene.position.set(0, 0, 0);
+  const modelBounds = new THREE.Box3().setFromObject(gltf.scene);
+  const modelFloorOffset = -modelBounds.min.y;
+  gltf.scene.position.set(0, modelFloorOffset, 0);
+  gltf.scene.updateMatrixWorld(true);
   scene.add(gltf.scene);
 
   for (let i = 0; i < modelMeshes.length; i++) {
