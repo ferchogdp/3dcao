@@ -5,12 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CAO 3D TOOL</title>
     <style>
+      :root {
+        color-scheme: light;
+      }
+
       body {
         margin: 0;
-        font-family: Arial, Helvetica, sans-serif;
-        height: 100vh;
+        font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif;
+        min-height: 100vh;
         display: flex;
         flex-direction: column;
+        background: #f4f8fb;
+        color: #1f2937;
       }
 
       canvas {
@@ -20,11 +26,82 @@
 
       #canvas2 {
         flex: 1;
-        min-height: 500px;
+        min-height: 55vh;
       }
 
       #forma {
-        margin-top: 5px;
+        margin: 8px;
+        padding: 12px;
+        background: #ffffff;
+        border: 1px solid #dbe4ee;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+      }
+
+      #forma form {
+        display: grid;
+        gap: 10px;
+      }
+
+      .field-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      label {
+        font-size: 0.9rem;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      input[type='number'] {
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #c8d5e4;
+        font-size: 1rem;
+      }
+
+      .units-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+
+      button {
+        width: 100%;
+        padding: 10px 14px;
+        border: none;
+        border-radius: 8px;
+        background: #1d4ed8;
+        color: #fff;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #1e40af;
+      }
+
+      .footer {
+        font-size: 0.75rem;
+        color: #4b5563;
+        padding: 10px;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+      }
+
+      @media (max-width: 700px) {
+        .field-row {
+          grid-template-columns: 1fr;
+        }
+
+        #canvas2 {
+          min-height: 50vh;
+        }
       }
     </style>
     <script type="importmap">
@@ -39,19 +116,30 @@
   <body oncontextmenu="return false;">
     <div id="forma">
       <form>
-        Largo:
-        <input type="number" name="largo" value="100" />
-        Ancho:
-        <input type="number" name="ancho" value="100" />
-        Alto:
-        <input type="number" name="alto" value="100" />
-        <input type="radio" name="unidades" value="cm" checked /> cm
-        <input type="radio" name="unidades" value="in" /> in
+        <div class="field-row">
+          <label>
+            Largo
+            <input type="number" name="largo" value="100" min="1" />
+          </label>
+          <label>
+            Ancho
+            <input type="number" name="ancho" value="100" min="1" />
+          </label>
+          <label>
+            Alto
+            <input type="number" name="alto" value="100" min="1" />
+          </label>
+        </div>
+        <div class="units-row">
+          <span>Unidades:</span>
+          <label><input type="radio" name="unidades" value="cm" checked /> cm</label>
+          <label><input type="radio" name="unidades" value="in" /> in</label>
+        </div>
         <button type="button" id="botonCrear">Create piece</button>
       </form>
     </div>
     <div id="canvas2"></div>
-    <div>
+    <div class="footer">
       Copyright (C) Fernando Gutierrez de Piñeres G. - All Rights Reserved * Unauthorized copying of this
       file, via any medium is strictly prohibited * Proprietary and confidential * Written by Fernando Gutierrez de
       Piñeres G. , 27 november 2019
