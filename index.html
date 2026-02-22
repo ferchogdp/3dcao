@@ -8,6 +8,9 @@
       body {
         margin: 0;
         font-family: Arial, Helvetica, sans-serif;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
       }
 
       canvas {
@@ -16,14 +19,22 @@
       }
 
       #canvas2 {
-        height: 90%;
+        flex: 1;
+        min-height: 500px;
       }
 
       #forma {
-        height: 5%;
         margin-top: 5px;
       }
     </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+        }
+      }
+    </script>
   </head>
   <body oncontextmenu="return false;">
     <div id="forma">
