@@ -184,29 +184,32 @@ const loader = new GLTFLoader();
 loader.load('mdcao767v3.gltf', handleLoad);
 
 function handleLoad(gltf) {
-  let mesh;
+  const modelMeshes = [];
   gltf.scene.traverse((child) => {
-    if (!mesh && child.isMesh) {
-      mesh = child;
+    if (child.isMesh) {
+      modelMeshes.push(child);
     }
   });
 
-  if (!mesh) {
+  if (modelMeshes.length === 0) {
     console.error('No mesh found in mdcao767v3.gltf');
     return;
   }
 
-  mesh.position.set(0, 0, 0);
-  scene.add(mesh);
+  gltf.scene.position.set(0, 0, 0);
+  scene.add(gltf.scene);
 
-  if (mesh.material) {
+  for (let i = 0; i < modelMeshes.length; i++) {
+    const mesh = modelMeshes[i];
+    if (!mesh.material) continue;
+
     mesh.material = mesh.material.clone();
     mesh.material.color.setHex(0xb2b9c1);
     mesh.material.transparent = true;
     mesh.material.opacity = 0.1;
-  }
 
-  collisionMesh.push(mesh);
+    collisionMesh.push(mesh);
+  }
 }
 
 window.addEventListener('resize', () => {
