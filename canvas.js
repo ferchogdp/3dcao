@@ -6,7 +6,10 @@ import { DragControls } from 'https://unpkg.com/three@0.180.0/examples/jsm/contr
 const collisionMesh = [];
 let gravityOnOff = true;
 const worldFloor = -0.768;
-let contadorIteraciones = 0;
+const gravityAcceleration = 9.81;
+const skin = 0.002;
+const clock = new THREE.Clock();
+let draggedObject = null;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xecf7f9);
@@ -37,14 +40,26 @@ const controls2 = new DragControls(objetos2, camera, renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-controls2.addEventListener('dragstart', () => {
+controls2.addEventListener('dragstart', (event) => {
+  draggedObject = event.object;
   controls.enabled = false;
   gravityOnOff = false;
+
+  if (draggedObject?.userData?.physics) {
+    draggedObject.userData.physics.velocityY = 0;
+  }
 });
 
-controls2.addEventListener('dragend', () => {
+controls2.addEventListener('dragend', (event) => {
+  draggedObject = event.object;
   controls.enabled = true;
   gravityOnOff = true;
+
+  if (draggedObject?.userData?.physics) {
+    draggedObject.userData.physics.lastSafePosition.copy(draggedObject.position);
+  }
+
+  draggedObject = null;
 });
 
 let sphere;
@@ -94,7 +109,10 @@ function createPiece() {
 
     const cube = new THREE.Mesh(geometry, material);
     cube.position.set(sphere.position.x, sphere.position.y, sphere.position.z);
-    cube.userData = [];
+    cube.userData.physics = {
+      velocityY: 0,
+      lastSafePosition: cube.position.clone(),
+    };
 
     scene.add(cube);
     objetos.push(cube);
@@ -105,46 +123,40 @@ function createPiece() {
 
 document.getElementById('botonCrear').addEventListener('click', createPiece);
 
-function distanceToNextObject(obj, axis) {
-  let [x, y, z] = [0, 0, 0];
-  switch (axis) {
-    case 'y':
-      y = -1;
-      break;
-    case 'x':
-      x = -1;
-      break;
-    case 'z':
-      z = -1;
-      break;
-    default:
-      break;
-  }
-
+function getDownwardIntersections(obj, origin) {
   const raycaster = new THREE.Raycaster();
-  raycaster.set(obj.position, new THREE.Vector3(x, y, z));
+  raycaster.set(origin, new THREE.Vector3(0, -1, 0));
   const intersects = raycaster.intersectObjects(collisionMesh, true);
-
-  return intersects.length > 0 ? intersects[0].point.y : worldFloor;
+  return intersects.filter((hit) => hit.object !== obj);
 }
 
-function gravity(mesh) {
-  const anyTarget = new THREE.Vector3();
-  const floorY = distanceToNextObject(mesh, 'y');
+function getSupportY(mesh) {
+  const bbox = new THREE.Box3().setFromObject(mesh);
+  const halfSize = bbox.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  const x = mesh.position.x;
+  const z = mesh.position.z;
+  const sampleOffsets = [
+    [0, 0],
+    [halfSize.x * 0.8, halfSize.z * 0.8],
+    [-halfSize.x * 0.8, halfSize.z * 0.8],
+    [halfSize.x * 0.8, -halfSize.z * 0.8],
+    [-halfSize.x * 0.8, -halfSize.z * 0.8],
+  ];
 
-  const box = new THREE.Box3().setFromObject(mesh);
-  const halfPc = box.getSize(anyTarget).y / 2;
-
-  if (gravityOnOff) {
-    mesh.position.y = floorY + halfPc + 0.01;
+  let maxSupportY = worldFloor;
+  for (let i = 0; i < sampleOffsets.length; i++) {
+    const [dx, dz] = sampleOffsets[i];
+    const origin = new THREE.Vector3(x + dx, bbox.max.y + skin, z + dz);
+    const intersections = getDownwardIntersections(mesh, origin);
+    if (intersections.length > 0) {
+      maxSupportY = Math.max(maxSupportY, intersections[0].point.y);
+    }
   }
+
+  return maxSupportY;
 }
 
-function checkCollision2(mesh) {
-  let collisionBoolAll = false;
-  let collisionPoint;
-  const collisionBoolArray = [];
-
+function hasCollision(mesh) {
   const originPoint = mesh.position.clone();
   const vertices = getBoxGeometryVertices(mesh);
 
@@ -152,31 +164,42 @@ function checkCollision2(mesh) {
     const localVertex = vertices[vertexIndex].clone();
     const globalVertex = localVertex.applyMatrix4(mesh.matrixWorld);
     const directionVector = globalVertex.sub(mesh.position);
-
     const ray = new THREE.Raycaster(originPoint, directionVector.clone().normalize());
     const collisionResults = ray.intersectObjects(collisionMesh, true);
 
-    if (collisionResults.length > 0 && collisionResults[0].object !== mesh && collisionResults[0].distance < directionVector.length()) {
-      collisionBoolArray.push(true);
-      collisionPoint = collisionResults[0].point;
-      controls2.enabled = false;
-    } else {
-      controls2.enabled = true;
-      collisionBoolArray.push(false);
+    if (collisionResults.length > 0 && collisionResults[0].object !== mesh && collisionResults[0].distance < directionVector.length() - skin) {
+      return true;
     }
   }
 
-  collisionBoolAll = collisionBoolArray.some((value) => value === true);
-  return [collisionBoolAll, collisionPoint];
+  return false;
 }
 
-function savePos(mesh) {
-  const [collisionBoolAll] = checkCollision2(mesh);
-  const posVector = mesh.position.clone();
+function applyGravity(mesh, deltaTime) {
+  const physics = mesh.userData.physics;
+  if (!physics) return;
 
-  mesh.userData.push([posVector, collisionBoolAll]);
-  if (mesh.userData.length > 50) {
-    mesh.userData.shift();
+  const box = new THREE.Box3().setFromObject(mesh);
+  const halfHeight = box.getSize(new THREE.Vector3()).y / 2;
+
+  physics.velocityY -= gravityAcceleration * deltaTime;
+  mesh.position.y += physics.velocityY * deltaTime;
+  mesh.updateMatrixWorld(true);
+
+  const supportY = getSupportY(mesh);
+  const bottomY = mesh.position.y - halfHeight;
+
+  if (bottomY <= supportY + skin) {
+    mesh.position.y = supportY + halfHeight + skin;
+    physics.velocityY = 0;
+  }
+
+  mesh.updateMatrixWorld(true);
+  if (hasCollision(mesh)) {
+    mesh.position.copy(physics.lastSafePosition);
+    physics.velocityY = 0;
+  } else {
+    physics.lastSafePosition.copy(mesh.position);
   }
 }
 
@@ -184,29 +207,32 @@ const loader = new GLTFLoader();
 loader.load('mdcao767v3.gltf', handleLoad);
 
 function handleLoad(gltf) {
-  let mesh;
+  const modelMeshes = [];
   gltf.scene.traverse((child) => {
-    if (!mesh && child.isMesh) {
-      mesh = child;
+    if (child.isMesh) {
+      modelMeshes.push(child);
     }
   });
 
-  if (!mesh) {
+  if (modelMeshes.length === 0) {
     console.error('No mesh found in mdcao767v3.gltf');
     return;
   }
 
-  mesh.position.set(0, 0, 0);
-  scene.add(mesh);
+  gltf.scene.position.set(0, 0, 0);
+  scene.add(gltf.scene);
 
-  if (mesh.material) {
+  for (let i = 0; i < modelMeshes.length; i++) {
+    const mesh = modelMeshes[i];
+    if (!mesh.material) continue;
+
     mesh.material = mesh.material.clone();
     mesh.material.color.setHex(0xb2b9c1);
     mesh.material.transparent = true;
     mesh.material.opacity = 0.1;
-  }
 
-  collisionMesh.push(mesh);
+    collisionMesh.push(mesh);
+  }
 }
 
 window.addEventListener('resize', () => {
@@ -217,24 +243,22 @@ window.addEventListener('resize', () => {
 
 function animate() {
   requestAnimationFrame(animate);
+  const deltaTime = Math.min(clock.getDelta(), 0.033);
   controls.update();
 
   for (let i = 0; i < objetos.length; i++) {
-    gravity(objetos[i]);
-    savePos(objetos[i]);
-    const collvar = checkCollision2(objetos[i]);
+    const mesh = objetos[i];
+    const isDragged = mesh === draggedObject;
 
-    if (collvar[0]) {
-      contadorIteraciones += 1;
-      const j = Math.max(objetos[i].userData.length - contadorIteraciones - 1, 0);
-      const mesh = objetos[i];
-      mesh.position.y = mesh.userData[j][0].y;
-      mesh.position.x = mesh.userData[j][0].x;
-      mesh.position.z = mesh.userData[j][0].z;
-    }
-
-    if (!collvar[0]) {
-      contadorIteraciones = 0;
+    if (!isDragged && gravityOnOff) {
+      applyGravity(mesh, deltaTime);
+    } else if (mesh.userData.physics) {
+      mesh.updateMatrixWorld(true);
+      if (hasCollision(mesh)) {
+        mesh.position.copy(mesh.userData.physics.lastSafePosition);
+      } else {
+        mesh.userData.physics.lastSafePosition.copy(mesh.position);
+      }
     }
   }
 
